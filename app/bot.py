@@ -14,6 +14,8 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
+    LabeledPrice,
+    PreCheckoutQuery,
     MenuButtonWebApp,
     Message,
     ReplyKeyboardMarkup,
@@ -152,7 +154,9 @@ def render_order(o: dict) -> str:
     lines.append(f"💰 Jami: <b>{money(o['total'])}</b>")
     if o.get("comment"):
         lines.append(f"\n💬 Izoh: <i>{esc(o['comment'])}</i>")
-    if o.get("paid"):
+    if o.get("paid") and o.get("receipt") == 2:
+        pay = "✅ ONLAYN TO'LANDI (Click/Payme)"
+    elif o.get("paid"):
         pay = "✅ Mijoz to'lov qildim dedi"
         if o.get("receipt"):
             pay += " (chek yuborildi)"
@@ -241,6 +245,59 @@ async def notify_customer(o: dict, key: str) -> None:
         await bot.send_message(o["user_id"], text)
     except Exception as e:  # noqa: BLE001
         log.warning("customer notify: %s", e)
+
+
+# ---------------------------------------------------------------- online payment
+async def invoice_link(o: dict) -> str:
+    prices = [LabeledPrice(label="Taomlar", amount=int(o["items_total"]) * 100)]
+    if o["service"]:
+        prices.append(LabeledPrice(label=f"Xizmat haqi ({o['service_percent']:g}%)", amount=int(o["service"]) * 100))
+    names = ", ".join(f"{i['qty']}× {i['name']}" for i in o["items"])
+    return await bot.create_invoice_link(
+        title=f"Buyurtma #{o['id']} · {o['table_no']}-stol"[:32],
+        description=(f"{db.get('brand_name')}: {names}")[:255],
+        payload=f"order:{o['id']}",
+        provider_token=str(db.get("payment_token")).strip(),
+        currency="UZS",
+        prices=prices,
+    )
+
+
+@router.pre_checkout_query()
+async def on_pre_checkout(q: PreCheckoutQuery) -> None:
+    try:
+        oid = int(q.invoice_payload.split(":")[1])
+    except (IndexError, ValueError):
+        await q.answer(ok=False, error_message="Buyurtma topilmadi")
+        return
+    o = await db.get_order(oid)
+    if not o or o["status"] == "cancelled":
+        await q.answer(ok=False, error_message="Buyurtma bekor qilingan yoki topilmadi")
+    elif o["paid"] and o["receipt"] == 2:
+        await q.answer(ok=False, error_message="Bu buyurtma allaqachon to'langan")
+    elif q.total_amount != int(o["total"]) * 100:
+        await q.answer(ok=False, error_message="Summa o'zgargan, qaytadan urinib ko'ring")
+    else:
+        await q.answer(ok=True)
+
+
+@router.message(F.successful_payment)
+async def on_paid(message: Message) -> None:
+    sp = message.successful_payment
+    try:
+        oid = int(sp.invoice_payload.split(":")[1])
+    except (IndexError, ValueError):
+        return
+    await db.update_order(oid, paid=1, receipt=2)
+    await refresh_staff_message(oid)
+    o = await db.get_order(oid)
+    for target in ([o["staff_chat_id"]] if o.get("staff_chat_id") else await staff_targets()):
+        try:
+            kwargs = {"reply_to_message_id": o["staff_msg_id"]} if o.get("staff_msg_id") and str(target) == str(o.get("staff_chat_id")) else {}
+            await bot.send_message(target, f"💳 <b>#{oid}</b> onlayn to'landi: {money(sp.total_amount / 100)} · Stol {o['table_no']}", **kwargs)
+        except Exception as e:  # noqa: BLE001
+            log.warning("paid notify: %s", e)
+    await message.answer(f"✅ To'lov qabul qilindi! Rahmat. <b>#{oid}</b> buyurtmangiz tayyorlanmoqda.")
 
 
 # ---------------------------------------------------------------- handlers

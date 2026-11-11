@@ -88,8 +88,18 @@ def public_order(o: dict) -> dict:
     return {k: o.get(k) for k in keys}
 
 
+def payment_mode() -> str:
+    mode = str(db.get("pay_mode") or "split")
+    if mode == "online" and not str(db.get("payment_token") or "").strip():
+        mode = "split"  # token bo'lmasa kartalarga qaytamiz
+    return mode if mode in ("split", "single", "online") else "split"
+
+
 def payment_info() -> dict:
     return {
+        "mode": payment_mode(),
+        "online_title": db.get("online_title"),
+        "card0": {"label": db.get("card0_label"), "number": db.get("card0_number"), "holder": db.get("card0_holder")},
         "card1": {"label": db.get("card1_label"), "number": db.get("card1_number"), "holder": db.get("card1_holder")},
         "card2": {"label": db.get("card2_label"), "number": db.get("card2_number"), "holder": db.get("card2_holder")},
         "note": db.get("pay_note"),
@@ -209,6 +219,20 @@ async def mark_paid(request: web.Request) -> web.Response:
     asyncio.create_task(tg.refresh_staff_message(o["id"]))
     o = await db.get_order(o["id"])
     return web.json_response({"order": public_order(o)})
+
+
+async def create_invoice(request: web.Request) -> web.Response:
+    _, o = await _own_order(request)
+    if payment_mode() != "online":
+        return err("Onlayn to'lov yoqilmagan")
+    if o["status"] == "cancelled":
+        return err("Buyurtma bekor qilingan")
+    if o["paid"]:
+        return err("Bu buyurtma allaqachon to'langan")
+    if not tg.bot:
+        return err("Bot ulanmagan")
+    link = await tg.invoice_link(o)
+    return web.json_response({"link": link})
 
 
 async def upload_receipt(request: web.Request) -> web.Response:
@@ -515,6 +539,7 @@ def build_app() -> web.Application:
     r.add_get("/api/orders/{oid}", get_order)
     r.add_post("/api/orders/{oid}/paid", mark_paid)
     r.add_post("/api/orders/{oid}/receipt", upload_receipt)
+    r.add_post("/api/orders/{oid}/invoice", create_invoice)
     r.add_get("/api/admin/data", admin_data)
     r.add_post("/api/admin/settings", admin_settings)
     r.add_post("/api/admin/settings/reset", admin_settings_reset)

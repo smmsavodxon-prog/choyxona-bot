@@ -38,6 +38,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "app_banner_text": "🔥 Bugun: issiq non va choy bepul!",
     "pay_note": "Ikkala kartaga ko'rsatilgan summani o'tkazing va chek rasmini yuklang.",
     # To'lov
+    "pay_mode": "split",  # split = 2 karta, single = 1 karta, online = Click/Payme
+    "card0_label": "To'lov kartasi",
+    "card0_number": "",
+    "card0_holder": "",
+    "payment_token": "",
+    "online_title": "To'lash",
     "service_percent": 15,
     "currency": "so'm",
     "card1_label": "Xizmat haqi",
@@ -60,7 +66,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "color_muted": "#A6978A",
 }
 
-PUBLIC_EXCLUDE = {"staff_chat_id"}
+PUBLIC_EXCLUDE = {"staff_chat_id", "payment_token"}
 
 SEED_CATEGORIES = [
     ("Milliy taomlar", "🍛"),

@@ -367,7 +367,7 @@
       <div class="panel"><h4>Izoh (ixtiyoriy)</h4><textarea id="comment" class="field" maxlength="500" placeholder="Masalan: achchiq bo'lmasin, choy keyinroq…">${esc(comment)}</textarea></div>
       <div class="panel">
         <div class="sum-row"><span>Taomlar</span><b>${moneyText(t.itemsTotal)}</b></div>
-        <div class="sum-row"><span>${esc(S.settings.card1_label || 'Xizmat haqi')} (${t.pct}%)</span><b>${moneyText(t.service)}</b></div>
+        <div class="sum-row"><span>Xizmat haqi (${t.pct}%)</span><b>${moneyText(t.service)}</b></div>
         <div class="sum-row total"><span>Jami</span><b>${moneyText(t.total)}</b></div>
       </div>`;
     btn.innerHTML = `${esc(S.settings.app_btn_checkout)} · ${moneyText(t.total)}`;
@@ -421,18 +421,29 @@
     const head = S.freshOrder
       ? `<div class="success"><div class="ring">✓</div><h2>Buyurtma #${o.id} qabul qilindi!</h2><p>${o.table_no}-stol · Oshxonaga yuborildi</p></div>`
       : `<div class="page-head"><button class="back" data-back>‹</button><h2>Buyurtma #${o.id}</h2><span class="st ${o.status}">${STATUS[o.status] || o.status}</span></div>`;
+    const mode = pay.mode || 'split';
+    let payInner = '';
+    if (o.paid && o.receipt === 2) {
+      payInner = '<div class="receipt-ok">✅ Onlayn to\'landi. Rahmat!</div>';
+    } else if (mode === 'online') {
+      payInner = `<button class="btn" data-online style="margin-top:14px">💳 ${esc(pay.online_title || "To'lash")} · ${moneyText(o.total)}</button>
+        <p class="note">Click yoki Payme orqali bir martada to'laysiz. To'lov Telegram ichida xavfsiz amalga oshadi.</p>`;
+    } else {
+      payInner = (mode === 'single'
+        ? payCard('c1', pay.card0 || {}, o.total)
+        : payCard('c1', pay.card1 || {}, o.service) + payCard('c2', pay.card2 || {}, o.items_total))
+        + `<p class="note">${esc(pay.note || '')}</p>
+        ${o.receipt ? '<div class="receipt-ok">✅ Chek yuborildi. Rahmat!</div>' : ''}
+        ${o.paid && !o.receipt ? '<div class="receipt-ok">✅ To\'lov haqida xabar berildi</div>' : ''}
+        ${!o.receipt ? `<div class="btn-row"><label class="btn ghost" style="cursor:pointer">📎 Chek yuklash<input type="file" accept="image/*" id="receipt" hidden></label>
+          ${!o.paid ? `<button class="btn" data-paid>${esc(S.settings.app_btn_paid)}</button>` : ''}</div>` : ''}`;
+    }
     const payBlock = o.status === 'cancelled' ? '' : `
       <div class="panel" style="padding-bottom:16px"><h4>💳 To'lov</h4>
         <div class="sum-row"><span>Taomlar</span><b>${moneyText(o.items_total)}</b></div>
         <div class="sum-row"><span>Xizmat haqi (${Number(o.service_percent)}%)</span><b>${moneyText(o.service)}</b></div>
         <div class="sum-row total"><span>Jami</span><b>${moneyText(o.total)}</b></div>
-        ${payCard('c1', pay.card1 || {}, o.service)}
-        ${payCard('c2', pay.card2 || {}, o.items_total)}
-        <p class="note">${esc(pay.note || '')}</p>
-        ${o.receipt ? '<div class="receipt-ok">✅ Chek yuborildi. Rahmat!</div>' : ''}
-        ${o.paid && !o.receipt ? '<div class="receipt-ok">✅ To\'lov haqida xabar berildi</div>' : ''}
-        ${!o.receipt ? `<div class="btn-row"><label class="btn ghost" style="cursor:pointer">📎 Chek yuklash<input type="file" accept="image/*" id="receipt" hidden></label>
-          ${!o.paid ? `<button class="btn" data-paid>${esc(S.settings.app_btn_paid)}</button>` : ''}</div>` : ''}
+        ${payInner}
       </div>`;
     return `<div class="page">${head}
       ${final ? '<div class="panel" style="text-align:center;color:var(--danger);font-weight:700">Bu buyurtma bekor qilingan</div>' : `<div class="panel">${stepsHtml(o.status)}</div>`}
@@ -475,6 +486,20 @@
       toast('Chek yuborildi ✓');
     } catch (e) { toast(e.message, true); }
     const y = window.scrollY; render(); window.scrollTo(0, y);
+  }
+  async function payOnline(btn) {
+    const old = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+    try {
+      const { link } = await api(`/api/orders/${S.order.id}/invoice`, { method: 'POST' });
+      if (tg && tg.openInvoice) {
+        tg.openInvoice(link, (status) => {
+          if (status === 'paid') { notifyHaptic('success'); toast("✅ To'lov qabul qilindi!"); setTimeout(refreshOrder, 1500); setTimeout(refreshOrder, 4000); }
+          else if (status === 'failed') toast("To'lov amalga oshmadi", true);
+        });
+      } else { window.open(link, '_blank'); }
+    } catch (e) { toast(e.message, true); }
+    btn.disabled = false; btn.innerHTML = old;
   }
   async function markPaid() {
     try {
@@ -538,6 +563,7 @@
     if (d.checkout !== undefined) { checkout(); return; }
     if (d.copy) { copyText(d.copy); return; }
     if (d.paid !== undefined) { markPaid(); return; }
+    if (d.online !== undefined) { payOnline(t); return; }
     if (d.order) {
       const o = (S.ordersCache || []).find((x) => x.id === Number(d.order));
       if (o) { S.order = o; S.freshOrder = false; go('order'); refreshOrder(); }

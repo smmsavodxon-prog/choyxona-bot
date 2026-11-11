@@ -187,19 +187,37 @@
 
     pay() {
       const pct = S().service_percent;
-      return `<div class="panel"><h4>💳 1-karta — xizmat haqi (${esc(pct)}%)</h4>
+      const mode = S().pay_mode || 'split';
+      const modes = [
+        ['split', '2 ta karta', `Xizmat haqi (${pct}%) 1-kartaga, taomlar 2-kartaga. Mijoz 2 marta o'tkazadi.`],
+        ['single', '1 ta karta', "Jami summa bitta kartaga. Mijoz 1 marta o'tkazadi."],
+        ['online', 'Click / Payme', "Ilovada bitta tugma, mijoz 1 marta to'laydi. Pul avtomatik tasdiqlanadi."],
+      ];
+      const modeBtns = modes.map(([k, t, d]) => `<button class="mode ${mode === k ? 'on' : ''}" data-mode="${k}"><b>${t}</b><span>${d}</span></button>`).join('');
+      const show = (m) => (mode === m ? '' : 'hidden');
+      return `<div class="panel"><h4>🧭 To'lov turi</h4><div class="modes">${modeBtns}</div>
+          <input type="hidden" data-key="pay_mode" value="${esc(mode)}"></div>
+        <div class="panel ${show('online')}" data-mode-box="online"><h4>⚡ Click / Payme (onlayn)</h4>
+          ${field('payment_token', 'To\'lov tokeni (BotFather beradi)', { ph: '398062629:TEST:...' })}
+          <div class="hint" style="line-height:1.6">Tokenni olish:<br>1. @BotFather → <b>/mybots</b> → botingiz → <b>Payments</b><br>2. <b>Click</b> yoki <b>Payme</b> ni tanlang va ko'rsatmalarga amal qiling (shartnoma tuzasiz)<br>3. BotFather bergan tokenni shu yerga qo'ying. Pul shartnomadagi hisobingizga tushadi.<br>Sinov uchun avval «Test» tokenini qo'yib ko'ring.</div>
+          ${field('online_title', 'Tugma yozuvi')}</div>
+        <div class="panel ${show('single')}" data-mode-box="single"><h4>💳 To'lov kartasi (jami summa)</h4>
+          ${field('card0_label', 'Karta nomi (mijozga ko\'rinadi)')}
+          ${field('card0_number', 'Karta raqami', { inputmode: 'numeric', ph: '8600 0000 0000 0000' })}
+          ${field('card0_holder', 'Karta egasi', { ph: 'ISM FAMILIYA' })}</div>
+        <div class="${show('split')}" data-mode-box="split"><div class="panel"><h4>💳 1-karta — xizmat haqi (${esc(pct)}%)</h4>
           ${field('card1_label', 'Karta nomi (mijozga ko\'rinadi)')}
           ${field('card1_number', 'Karta raqami', { inputmode: 'numeric', ph: '8600 0000 0000 0000' })}
           ${field('card1_holder', 'Karta egasi', { ph: 'ISM FAMILIYA' })}</div>
         <div class="panel"><h4>💳 2-karta — taomlar summasi</h4>
           ${field('card2_label', 'Karta nomi (mijozga ko\'rinadi)')}
           ${field('card2_number', 'Karta raqami', { inputmode: 'numeric', ph: '9860 0000 0000 0000' })}
-          ${field('card2_holder', 'Karta egasi', { ph: 'ISM FAMILIYA' })}</div>
+          ${field('card2_holder', 'Karta egasi', { ph: 'ISM FAMILIYA' })}</div></div>
         <div class="panel"><h4>⚙️ Hisob-kitob</h4>
-          ${field('service_percent', 'Xizmat haqi foizi (%)', { type: 'number', inputmode: 'numeric', hint: "Masalan 15 — taomlar summasining 15% i 1-kartaga, taomlar summasi 2-kartaga to'lanadi." })}
+          ${field('service_percent', 'Xizmat haqi foizi (%)', { type: 'number', inputmode: 'numeric', hint: "Masalan 15. 0 qilsangiz xizmat haqi olinmaydi." })}
           ${field('currency', 'Valyuta yozuvi')}
-          ${field('pay_note', "To'lov sahifasidagi izoh", { area: true })}
-          ${toggle('require_receipt', 'Chek majburiy', '«To\'lov qildim» uchun chek rasmini yuklash shart bo\'ladi')}</div>
+          ${field('pay_note', "Karta orqali to'lovdagi izoh", { area: true })}
+          ${toggle('require_receipt', 'Chek majburiy', 'Karta orqali to\'lashda chek rasmini yuklash shart bo\'ladi')}</div>
         ${saveBar()}`;
     },
 
@@ -414,6 +432,12 @@
     if (d.catEdit) { catEditor(A.data.categories.find((c) => c.id === Number(d.catEdit))); return; }
     if (d.prodEdit) { prodEditor(A.data.products.find((p) => p.id === Number(d.prodEdit))); return; }
     if (d.pcat) { A.prodCat = d.pcat; render(); return; }
+    if (d.mode) {
+      A.root.querySelector('[data-key="pay_mode"]').value = d.mode;
+      A.root.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('on', b.dataset.mode === d.mode));
+      A.root.querySelectorAll('[data-mode-box]').forEach((b) => b.classList.toggle('hidden', b.dataset.modeBox !== d.mode));
+      App().haptic(); markDirty(); return;
+    }
     if (d.move) { move(d.move); return; }
     if (d.badge !== undefined) { document.getElementById('p-badge').value = d.badge; App().haptic(); return; }
     if (d.preset) {
