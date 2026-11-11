@@ -66,6 +66,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "color_muted": "#A6978A",
 }
 
+# Hostingdagi SETTING_<KALIT> o'zgaruvchilari standart qiymatni almashtiradi (masalan SETTING_CARD1_NUMBER)
+import os as _os
+for _k, _v in list(DEFAULT_SETTINGS.items()):
+    _env = _os.getenv("SETTING_" + _k.upper())
+    if _env is not None and not isinstance(_v, (bool, int)):
+        DEFAULT_SETTINGS[_k] = _env
+
 PUBLIC_EXCLUDE = {"staff_chat_id", "payment_token"}
 
 SEED_CATEGORIES = [
