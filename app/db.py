@@ -18,6 +18,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "no_table_text": "📷 Stolingizdagi QR kodni skanerlang yoki menyu ichida stol raqamini tanlang.",
     "contact_text": "📍 Manzil: shahar, ko'cha, uy\n📞 Telefon: +998 90 000 00 00\n🕐 Ish vaqti: 10:00 — 02:00",
     "accepted_text": "👨‍🍳 <b>#{order}</b> buyurtmangiz qabul qilindi va tayyorlanmoqda.",
+    "paid_text": "✅ <b>#{order}</b> to'lovingiz tasdiqlandi! Buyurtmangiz oshxonaga yuborildi. 👨‍🍳",
+    "reject_text": "⚠️ <b>#{order}</b> buyurtma bo'yicha to'lov topilmadi. Iltimos, to'lovni amalga oshirib, chekni qaytadan yuklang.",
     "ready_text": "✅ <b>#{order} buyurtmangiz tayyor!</b>\nIltimos, kelib olib keting. Yoqimli ishtaha! 😋",
     "cancel_text": "❌ <b>#{order}</b> buyurtmangiz bekor qilindi. Savollar bo'lsa, ofitsiantga murojaat qiling.",
     "waiter_text": "🙋 Ofitsiant chaqirildi, hozir yetib keladi.",
@@ -52,7 +54,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "card2_label": "Taomlar uchun",
     "card2_number": "",
     "card2_holder": "",
-    "require_receipt": False,
+    "require_receipt": True,
+    "verify_payment": True,
     # Ishlash
     "tables_count": 20,
     "staff_chat_id": "",
@@ -344,7 +347,7 @@ class DB:
             """INSERT INTO orders(user_id, user_name, username, table_no, items, items_total, service_percent,
                service, total, comment, status, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (o["user_id"], o["user_name"], o["username"], o["table_no"], json.dumps(o["items"], ensure_ascii=False),
-             o["items_total"], o["service_percent"], o["service"], o["total"], o.get("comment", ""), "new", now, now),
+             o["items_total"], o["service_percent"], o["service"], o["total"], o.get("comment", ""), o.get("status", "new"), now, now),
         )
         await self.conn.commit()
         return cur.lastrowid
@@ -390,7 +393,7 @@ class DB:
         ) as cur:
             row = dict(await cur.fetchone())
         async with self.conn.execute(
-            "SELECT COUNT(*) FROM orders WHERE status IN ('new','accepted')"
+            "SELECT COUNT(*) FROM orders WHERE status IN ('pending','new','accepted')"
         ) as cur:
             (active,) = await cur.fetchone()
         async with self.conn.execute("SELECT COUNT(*) FROM users") as cur:

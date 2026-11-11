@@ -397,15 +397,16 @@
   }
 
   /* ------------------------------------------------------------ order page */
-  const STATUS = { new: '🆕 Yangi', accepted: '👨‍🍳 Tayyorlanmoqda', ready: '✅ Tayyor', done: '🏁 Berildi', cancelled: '❌ Bekor qilindi' };
+  const STATUS = { pending: "⏳ To'lov kutilmoqda", new: '🧾 Qabul qilindi', accepted: '👨‍🍳 Tayyorlanmoqda', ready: '✅ Tayyor', done: '🏁 Berildi', cancelled: '❌ Bekor qilindi' };
   function stepsHtml(st) {
-    const order = ['new', 'accepted', 'ready'];
+    const order = ['pending', 'new', 'accepted', 'ready'];
     let idx = order.indexOf(st);
-    if (st === 'done') idx = 2;
-    const labels = [['🧾', 'Qabul qilindi'], ['👨‍🍳', 'Tayyorlanmoqda'], ['🍽', 'Tayyor']];
-    const width = idx <= 0 ? 0 : idx === 1 ? 50 : 100;
-    return `<div class="steps"><div class="bar" style="width:calc((100% - 36px) * ${width / 100})"></div>${labels.map(([i, l], k) => `<div class="step ${k <= idx ? 'on' : ''} ${k === idx && st !== 'done' && st !== 'ready' ? 'cur' : ''}"><i>${i}</i>${l}</div>`).join('')}</div>`;
+    if (st === 'done') idx = 3;
+    const labels = [['💳', "To'lov"], ['🧾', 'Qabul qilindi'], ['👨‍🍳', 'Oshxonada'], ['🍽', 'Tayyor']];
+    const width = Math.max(0, idx) / 3;
+    return `<div class="steps"><div class="bar" style="width:calc((100% - 36px) * ${width})"></div>${labels.map(([i, l], k) => `<div class="step ${k <= idx ? 'on' : ''} ${k === idx && idx < 3 ? 'cur' : ''}"><i>${i}</i>${l}</div>`).join('')}</div>`;
   }
+
   function payCard(cls, card, amount) {
     const num = String(card.number || '').replace(/\s+/g, '');
     const pretty = num ? num.replace(/(.{4})/g, '$1 ').trim() : 'Karta kiritilmagan';
@@ -419,7 +420,7 @@
     if (!o) return '';
     const final = ['cancelled'].includes(o.status);
     const head = S.freshOrder
-      ? `<div class="success"><div class="ring">✓</div><h2>Buyurtma #${o.id} qabul qilindi!</h2><p>${o.table_no}-stol · Oshxonaga yuborildi</p></div>`
+      ? `<div class="success"><div class="ring">✓</div><h2>${o.status === 'pending' ? `Buyurtma #${o.id} yaratildi` : `Buyurtma #${o.id} qabul qilindi!`}</h2><p>${o.table_no}-stol · ${o.status === 'pending' ? "Endi to'lovni amalga oshiring 👇" : 'Oshxonaga yuborildi'}</p></div>`
       : `<div class="page-head"><button class="back" data-back>‹</button><h2>Buyurtma #${o.id}</h2><span class="st ${o.status}">${STATUS[o.status] || o.status}</span></div>`;
     const mode = pay.mode || 'split';
     let payInner = '';
@@ -429,14 +430,20 @@
       payInner = `<button class="btn" data-online style="margin-top:14px">💳 ${esc(pay.online_title || "To'lash")} · ${moneyText(o.total)}</button>
         <p class="note">Click yoki Payme orqali bir martada to'laysiz. To'lov Telegram ichida xavfsiz amalga oshadi.</p>`;
     } else {
-      payInner = (mode === 'single'
+      const cards = mode === 'single'
         ? payCard('c1', pay.card0 || {}, o.total)
-        : payCard('c1', pay.card1 || {}, o.service) + payCard('c2', pay.card2 || {}, o.items_total))
-        + `<p class="note">${esc(pay.note || '')}</p>
-        ${o.receipt ? '<div class="receipt-ok">✅ Chek yuborildi. Rahmat!</div>' : ''}
-        ${o.paid && !o.receipt ? '<div class="receipt-ok">✅ To\'lov haqida xabar berildi</div>' : ''}
-        ${!o.receipt ? `<div class="btn-row"><label class="btn ghost" style="cursor:pointer">📎 Chek yuklash<input type="file" accept="image/*" id="receipt" hidden></label>
-          ${!o.paid ? `<button class="btn" data-paid>${esc(S.settings.app_btn_paid)}</button>` : ''}</div>` : ''}`;
+        : payCard('c1', pay.card1 || {}, o.service) + payCard('c2', pay.card2 || {}, o.items_total);
+      if (o.paid) {
+        payInner = `<div class="receipt-ok">✅ To'lov tasdiqlandi. Rahmat!</div>`;
+      } else if (o.receipt) {
+        payInner = `<div class="receipt-wait"><span class="spin"></span><div><b>Chek tekshirilmoqda…</b><span>Kassir kartaga pul tushganini tekshiradi va buyurtmangiz oshxonaga o'tadi. Bu sahifa o'zi yangilanadi.</span></div></div>`;
+      } else {
+        payInner = `<div class="pay-steps"><b>1.</b> Quyidagi ${mode === 'single' ? 'kartaga' : 'kartalarga'} ko'rsatilgan summani o'tkazing<br><b>2.</b> To'lov chekini (skrinshot) yuklang<br><b>3.</b> Kassir tasdiqlagach, buyurtma tayyorlanadi</div>
+          ${cards}
+          ${pay.note ? `<p class="note">${esc(pay.note)}</p>` : ''}
+          <label class="btn" style="margin-top:14px;cursor:pointer">📎 To'lov chekini yuklash<input type="file" accept="image/*" id="receipt" hidden></label>
+          <p class="note">⚠️ Chek yuklanmaguncha va to'lov tasdiqlanmaguncha buyurtma tayyorlanmaydi.</p>`;
+      }
     }
     const payBlock = o.status === 'cancelled' ? '' : `
       <div class="panel" style="padding-bottom:16px"><h4>💳 To'lov</h4>
@@ -516,7 +523,7 @@
     const box = $('#orders-list');
     try {
       const { orders } = await api('/api/orders');
-      S.hasActive = orders.some((o) => ['new', 'accepted', 'ready'].includes(o.status));
+      S.hasActive = orders.some((o) => ['pending', 'new', 'accepted', 'ready'].includes(o.status));
       if (!orders.length) { box.innerHTML = `<div class="empty-state"><div class="e">🧾</div><b>Hali buyurtma yo'q</b>Birinchi buyurtmangizni bering!</div>`; return; }
       S.ordersCache = orders;
       box.innerHTML = orders.map((o) => {
@@ -610,7 +617,7 @@
       render();
       updateBack();
       api('/api/orders').then(({ orders }) => {
-        S.hasActive = orders.some((o) => ['new', 'accepted', 'ready'].includes(o.status));
+        S.hasActive = orders.some((o) => ['pending', 'new', 'accepted', 'ready'].includes(o.status));
         if (S.hasActive && S.view === 'menu') { const b = $('[data-go="orders"]'); if (b && !$('.dot', b)) b.insertAdjacentHTML('beforeend', '<span class="dot"></span>'); }
       }).catch(() => {});
     } catch (e) {

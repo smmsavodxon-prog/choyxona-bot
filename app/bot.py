@@ -33,7 +33,8 @@ router = Router()
 dp.include_router(router)
 
 STATUS_LABELS = {
-    "new": "🆕 Yangi",
+    "pending": "⏳ To'lov kutilmoqda",
+    "new": "🆕 Yangi (to'langan)",
     "accepted": "👨‍🍳 Tayyorlanmoqda",
     "ready": "✅ Tayyor",
     "done": "🏁 Berildi",
@@ -157,11 +158,11 @@ def render_order(o: dict) -> str:
     if o.get("paid") and o.get("receipt") == 2:
         pay = "✅ ONLAYN TO'LANDI (Click/Payme)"
     elif o.get("paid"):
-        pay = "✅ Mijoz to'lov qildim dedi"
-        if o.get("receipt"):
-            pay += " (chek yuborildi)"
+        pay = "✅ To'lov tasdiqlandi"
+    elif o.get("receipt"):
+        pay = "🧾 CHEK YUBORILDI — kartani tekshiring va «To'lov keldi» ni bosing"
     else:
-        pay = "⏳ To'lov kutilmoqda"
+        pay = "⏳ To'lov qilinmagan — TAYYORLAMANG"
     lines.append(f"\n💳 {pay}")
     lines.append(f"🕐 {time.strftime('%d.%m %H:%M', local_time(o['created_at']))}")
     return "\n".join(lines)
@@ -171,7 +172,10 @@ def order_keyboard(o: dict) -> InlineKeyboardMarkup | None:
     oid = o["id"]
     st = o["status"]
     rows: list[list[InlineKeyboardButton]] = []
-    if st == "new":
+    if st == "pending":
+        rows.append([InlineKeyboardButton(text="✅ To'lov keldi", callback_data=f"o:confirm:{oid}")])
+        rows.append([InlineKeyboardButton(text="❌ Bekor", callback_data=f"o:cancel:{oid}")])
+    elif st == "new":
         rows.append([InlineKeyboardButton(text="✅ Qabul qilish", callback_data=f"o:accept:{oid}")])
         rows.append([
             InlineKeyboardButton(text="🍽 Tayyor", callback_data=f"o:ready:{oid}"),
@@ -232,7 +236,14 @@ async def send_receipt(oid: int, data: bytes, filename: str) -> None:
             kwargs = {}
             if o.get("staff_msg_id") and str(target) == str(o.get("staff_chat_id")):
                 kwargs["reply_to_message_id"] = o["staff_msg_id"]
-            await bot.send_photo(target, file, caption=caption, **kwargs)
+            kb = None
+            if o["status"] == "pending":
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="✅ To'lov keldi", callback_data=f"o:confirm:{oid}"),
+                    InlineKeyboardButton(text="❌ Pul kelmadi", callback_data=f"o:reject:{oid}"),
+                ]])
+                caption += "\n\nKartaga pul tushganini tekshiring 👇"
+            await bot.send_photo(target, file, caption=caption, reply_markup=kb, **kwargs)
         except Exception as e:  # noqa: BLE001
             log.warning("receipt send: %s", e)
 
@@ -288,7 +299,11 @@ async def on_paid(message: Message) -> None:
         oid = int(sp.invoice_payload.split(":")[1])
     except (IndexError, ValueError):
         return
-    await db.update_order(oid, paid=1, receipt=2)
+    o = await db.get_order(oid)
+    fields = {"paid": 1, "receipt": 2}
+    if o and o["status"] == "pending":
+        fields["status"] = "new"
+    await db.update_order(oid, **fields)
     await refresh_staff_message(oid)
     o = await db.get_order(oid)
     for target in ([o["staff_chat_id"]] if o.get("staff_chat_id") else await staff_targets()):
@@ -476,11 +491,25 @@ async def on_order_action(cb: CallbackQuery) -> None:
     if not o:
         await cb.answer("Buyurtma topilmadi", show_alert=True)
         return
+    if action == "reject":
+        if o["status"] != "pending":
+            await cb.answer(f"Holat: {STATUS_LABELS.get(o['status'])}", show_alert=True)
+            return
+        await db.update_order(oid, receipt=0)
+        await notify_customer(o, "reject_text")
+        await refresh_staff_message(oid)
+        try:
+            await cb.message.edit_caption(caption=(cb.message.caption or "") + f"\n\n❌ Pul kelmadi — {esc(cb.from_user.first_name)}", reply_markup=None)
+        except Exception:  # noqa: BLE001
+            pass
+        await cb.answer("Mijozga xabar yuborildi")
+        return
     transitions = {
+        "confirm": ("new", "paid_text", {"pending"}),
         "accept": ("accepted", "accepted_text", {"new"}),
         "ready": ("ready", "ready_text", {"new", "accepted"}),
         "done": ("done", None, {"ready"}),
-        "cancel": ("cancelled", "cancel_text", {"new", "accepted"}),
+        "cancel": ("cancelled", "cancel_text", {"pending", "new", "accepted"}),
     }
     if action not in transitions:
         await cb.answer()
@@ -490,16 +519,30 @@ async def on_order_action(cb: CallbackQuery) -> None:
         await cb.answer(f"Holat allaqachon: {STATUS_LABELS.get(o['status'])}", show_alert=True)
         await refresh_staff_message(oid)
         return
-    await db.update_order(oid, status=new_status)
+    upd = {"status": new_status}
+    if action == "confirm":
+        upd["paid"] = 1
+        o["paid"] = 1
+    await db.update_order(oid, **upd)
     o["status"] = new_status
     if notify_key:
         await notify_customer(o, notify_key)
     who = esc(cb.from_user.first_name)
-    try:
-        # Bosilgan xabarni yangilash (bir nechta adminga yuborilgan bo'lsa ham)
-        await cb.message.edit_text(render_order(o) + f"\n\n👤 Oxirgi amal: {who}", reply_markup=order_keyboard(o))
-    except Exception:  # noqa: BLE001
-        pass
+    if cb.message and cb.message.photo:
+        # Chek rasmi ostidagi tugma bosildi
+        try:
+            await cb.message.edit_caption(caption=(cb.message.caption or "") + f"\n\n{STATUS_LABELS.get(new_status)} — {who}", reply_markup=None)
+        except Exception:  # noqa: BLE001
+            pass
+        await refresh_staff_message(oid)
+    else:
+        try:
+            # Bosilgan xabarni yangilash (bir nechta adminga yuborilgan bo'lsa ham)
+            await cb.message.edit_text(render_order(o) + f"\n\n👤 Oxirgi amal: {who}", reply_markup=order_keyboard(o))
+        except Exception:  # noqa: BLE001
+            pass
+        if cb.message and o.get("staff_msg_id") != cb.message.message_id:
+            await refresh_staff_message(oid)
     await cb.answer(STATUS_LABELS.get(new_status, "OK"))
 
 

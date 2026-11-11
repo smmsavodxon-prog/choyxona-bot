@@ -182,7 +182,7 @@ select.field option { background: var(--surface); color: var(--text); }
 .steps { display: flex; justify-content: space-between; position: relative; margin: 8px 6px 2px; }
 .steps::before { content: ""; position: absolute; left: 18px; right: 18px; top: 17px; height: 3px; background: var(--line2); border-radius: 3px; }
 .steps .bar { position: absolute; left: 18px; top: 17px; height: 3px; background: var(--grad); border-radius: 3px; transition: width .6s; }
-.step { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 76px; font-size: 11.5px; color: var(--muted); font-weight: 600; text-align: center; }
+.step { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 70px; font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; }
 .step i { width: 36px; height: 36px; border-radius: 50%; background: var(--surface); box-shadow: inset 0 0 0 2px var(--line2); display: grid; place-items: center; font-style: normal; font-size: 16px; transition: all .3s; }
 .step.on { color: var(--text); }
 .step.on i { background: var(--grad); box-shadow: 0 6px 16px rgba(var(--accent-rgb), .4); }
@@ -295,3 +295,10 @@ select.field option { background: var(--surface); color: var(--text); }
 .mode span { font-size: 12.5px; color: var(--muted); }
 .mode.on { background: rgba(var(--accent-rgb), .14); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .mode.on b::before { content: "✓ "; color: var(--accent); }
+
+.pay-steps { margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(var(--accent-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .25); font-size: 13.5px; line-height: 1.7; }
+.pay-steps b { color: var(--accent); }
+.receipt-wait { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 14px; border-radius: 16px; background: rgba(var(--accent-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .3); color: var(--accent); }
+.receipt-wait .spin { flex: none; margin-top: 2px; }
+.receipt-wait b { display: block; color: var(--text); }
+.receipt-wait span { font-size: 13px; color: var(--muted); }

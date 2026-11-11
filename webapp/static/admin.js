@@ -31,13 +31,15 @@
     ['📱 Ilova tugmalari va matnlari', [
       ['app_hero_title', 'Asosiy sarlavha'], ['app_banner_text', 'Banner (aksiya) matni — bo\'sh qoldirsangiz ko\'rinmaydi'],
       ['app_search_placeholder', 'Qidiruv maydoni matni'], ['app_btn_add', "Qo'shish tugmasi"], ['app_btn_cart', 'Savat yozuvi'],
-      ['app_btn_checkout', 'Buyurtma berish tugmasi'], ['app_btn_paid', "To'lov qildim tugmasi"],
+      ['app_btn_checkout', 'Buyurtma berish tugmasi'],
     ]],
     ['💬 Bot xabarlari', [
       ['welcome_text', 'Salomlashish ( {name} — mijoz ismi, {brand} — nom )', true],
       ['table_text', 'Stol xabari ( {table} — stol raqami )', true],
       ['no_table_text', 'Stol tanlanmaganda', true],
       ['contact_text', 'Aloqa ma\'lumotlari', true],
+      ['paid_text', "To'lov tasdiqlanganda", true],
+      ['reject_text', 'Pul kelmadi deyilganda', true],
       ['accepted_text', 'Buyurtma qabul qilinganda ( {order} — raqam )', true],
       ['ready_text', 'Buyurtma tayyor bo\'lganda', true],
       ['cancel_text', 'Bekor qilinganda', true],
@@ -47,7 +49,7 @@
 
   const { esc } = { esc: (v) => App().esc(v) };
   const S = () => A.data.settings;
-  const STATUS = { new: '🆕 Yangi', accepted: '👨‍🍳 Tayyorlanmoqda', ready: '✅ Tayyor', done: '🏁 Berildi', cancelled: '❌ Bekor' };
+  const STATUS = { pending: "⏳ To'lov kutilmoqda", new: "🆕 To'langan", accepted: '👨‍🍳 Tayyorlanmoqda', ready: '✅ Tayyor', done: '🏁 Berildi', cancelled: '❌ Bekor' };
 
   /* ------------------------------------------------------------ helpers */
   function field(key, label, opts = {}) {
@@ -138,13 +140,14 @@
         const d = new Date(o.created_at * 1000);
         const t = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         const acts = [];
+        if (o.status === 'pending') acts.push(['new', "✅ To'lov keldi"]);
         if (o.status === 'new') acts.push(['accepted', '✅ Qabul']);
         if (['new', 'accepted'].includes(o.status)) acts.push(['ready', '🍽 Tayyor']);
         if (o.status === 'ready') acts.push(['done', '🏁 Berildi']);
-        if (['new', 'accepted'].includes(o.status)) acts.push(['cancelled', '❌']);
+        if (['pending', 'new', 'accepted'].includes(o.status)) acts.push(['cancelled', '❌']);
         return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <b style="font-size:17px">#${o.id} · ${o.table_no}-stol</b><span class="st ${o.status}">${STATUS[o.status]}</span></div>
-          <div class="hint" style="margin:4px 0 8px">${esc(o.user_name)}${o.username ? ' @' + esc(o.username) : ''} · ${t} · ${o.paid ? (o.receipt ? '💳 chek bor' : "💳 to'ladim dedi") : "⏳ to'lov kutilmoqda"}</div>
+          <div class="hint" style="margin:4px 0 8px">${esc(o.user_name)}${o.username ? ' @' + esc(o.username) : ''} · ${t} · ${o.receipt === 2 ? "✅ onlayn to'langan" : o.paid ? "✅ to'lov tasdiqlangan" : o.receipt ? '🧾 chek bor — tekshiring' : "⏳ to'lanmagan"}</div>
           ${o.items.map((i) => `<div class="sum-row" style="padding:3px 0"><span>${i.qty} × ${esc(i.name)}</span><b>${App().moneyText(i.qty * i.price)}</b></div>`).join('')}
           ${o.comment ? `<div class="hint">💬 ${esc(o.comment)}</div>` : ''}
           <div class="sum-row total" style="font-size:16px"><span>Jami (xizmat ${App().moneyText(o.service)})</span><b>${App().moneyText(o.total)}</b></div>
@@ -217,7 +220,7 @@
           ${field('service_percent', 'Xizmat haqi foizi (%)', { type: 'number', inputmode: 'numeric', hint: "Masalan 15. 0 qilsangiz xizmat haqi olinmaydi." })}
           ${field('currency', 'Valyuta yozuvi')}
           ${field('pay_note', "Karta orqali to'lovdagi izoh", { area: true })}
-          ${toggle('require_receipt', 'Chek majburiy', 'Karta orqali to\'lashda chek rasmini yuklash shart bo\'ladi')}</div>
+          ${toggle('verify_payment', "To'lovni kassir tasdiqlaydi", "Tavsiya etiladi. Buyurtma oshxonaga faqat «To'lov keldi» bosilgandan keyin o'tadi")}</div>
         ${saveBar()}`;
     },
 

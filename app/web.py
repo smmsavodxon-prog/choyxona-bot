@@ -180,6 +180,7 @@ async def create_order(request: web.Request) -> web.Response:
         user_id=uid, user_name=full_name(user), username=user.get("username") or "", table_no=table,
         items=items, items_total=items_total, service_percent=pct, service=service,
         total=items_total + service, comment=comment,
+        status="pending" if (db.get("verify_payment") or payment_mode() == "online") else "new",
     )
     asyncio.create_task(tg.notify_new_order(oid))
     order = await db.get_order(oid)
@@ -213,8 +214,8 @@ async def mark_paid(request: web.Request) -> web.Response:
     _, o = await _own_order(request)
     if o["status"] == "cancelled":
         return err("Buyurtma bekor qilingan")
-    if db.get("require_receipt") and not o["receipt"]:
-        return err("Iltimos, avval chek rasmini yuklang")
+    if o["status"] == "pending" or db.get("require_receipt"):
+        return err("Iltimos, to'lov chekini (skrinshot) yuklang")
     await db.update_order(o["id"], paid=1)
     asyncio.create_task(tg.refresh_staff_message(o["id"]))
     o = await db.get_order(o["id"])
@@ -243,7 +244,14 @@ async def upload_receipt(request: web.Request) -> web.Response:
     jpg = await asyncio.get_running_loop().run_in_executor(None, _process_image, data, 1600)
     if not jpg:
         return err("Faqat rasm yuklash mumkin")
-    await db.update_order(o["id"], receipt=1, paid=1)
+    if o["status"] == "cancelled":
+        return err("Buyurtma bekor qilingan")
+    if o["receipt"] == 2:
+        return err("Bu buyurtma allaqachon to'langan")
+    fields = {"receipt": 1}
+    if o["status"] != "pending":
+        fields["paid"] = 1  # tekshiruv o'chirilgan bo'lsa
+    await db.update_order(o["id"], **fields)
     asyncio.create_task(tg.send_receipt(o["id"], jpg, f"chek_{o['id']}.jpg"))
     asyncio.create_task(tg.refresh_staff_message(o["id"]))
     o = await db.get_order(o["id"])
@@ -420,13 +428,15 @@ async def admin_order_status(request: web.Request) -> web.Response:
     oid = int(request.match_info["oid"])
     body = await request.json()
     status = body.get("status")
-    notify = {"accepted": "accepted_text", "ready": "ready_text", "cancelled": "cancel_text", "done": None}
+    notify = {"new": "paid_text", "accepted": "accepted_text", "ready": "ready_text", "cancelled": "cancel_text", "done": None}
     if status not in notify:
         return err("Noto'g'ri holat")
     o = await db.get_order(oid)
     if not o:
         return err("Topilmadi", 404)
-    await db.update_order(oid, status=status)
+    if status == "new" and o["status"] != "pending":
+        return err("Bu buyurtma to'lovi allaqachon tasdiqlangan")
+    await db.update_order(oid, status=status, **({"paid": 1} if status == "new" else {}))
     o["status"] = status
     if notify[status]:
         asyncio.create_task(tg.notify_customer(o, notify[status]))
