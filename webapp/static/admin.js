@@ -10,12 +10,12 @@
   ];
 
   const PRESETS = [
+    { name: 'Zamonaviy', c: { color_accent: '#FF5A1F', color_accent2: '#FF8A3D', color_bg: '#F3F3F5', color_surface: '#FFFFFF', color_text: '#16161A', color_muted: '#8B8B94' } },
+    { name: 'Yashil', c: { color_accent: '#12A150', color_accent2: '#34C77B', color_bg: '#F2F5F3', color_surface: '#FFFFFF', color_text: '#121714', color_muted: '#86918A' } },
+    { name: 'Malina', c: { color_accent: '#E6264D', color_accent2: '#FF5C7A', color_bg: '#F6F2F3', color_surface: '#FFFFFF', color_text: '#1A1416', color_muted: '#8F8589' } },
+    { name: 'Ko\'k', c: { color_accent: '#2F6BFF', color_accent2: '#5B8CFF', color_bg: '#F2F4F8', color_surface: '#FFFFFF', color_text: '#12161F', color_muted: '#848B99' } },
+    { name: 'Tungi', c: { color_accent: '#FF6A2B', color_accent2: '#FF9452', color_bg: '#0F0F12', color_surface: '#1B1B20', color_text: '#F5F5F7', color_muted: '#8E8E98' } },
     { name: 'Oltin kecha', c: { color_accent: '#E8B04B', color_accent2: '#D9772B', color_bg: '#0E0C0A', color_surface: '#1A1612', color_text: '#F7F0E6', color_muted: '#A6978A' } },
-    { name: 'Zumrad', c: { color_accent: '#34D399', color_accent2: '#0EA5A4', color_bg: '#07110E', color_surface: '#0F1D18', color_text: '#ECFDF5', color_muted: '#8FB3A5' } },
-    { name: 'Anor', c: { color_accent: '#F43F5E', color_accent2: '#F97316', color_bg: '#120A0B', color_surface: '#1F1214', color_text: '#FFF1F2', color_muted: '#B8959A' } },
-    { name: 'Lojuvard', c: { color_accent: '#60A5FA', color_accent2: '#A78BFA', color_bg: '#090C14', color_surface: '#121826', color_text: '#EEF2FF', color_muted: '#94A0BC' } },
-    { name: 'Qahva', c: { color_accent: '#C08552', color_accent2: '#8C5A3C', color_bg: '#16110D', color_surface: '#221A14', color_text: '#F5EBDD', color_muted: '#AD9A88' } },
-    { name: 'Oq marmar', c: { color_accent: '#C9902F', color_accent2: '#B4542A', color_bg: '#F7F3EC', color_surface: '#FFFFFF', color_text: '#1E1812', color_muted: '#7D7064' } },
   ];
 
   const COLOR_FIELDS = [

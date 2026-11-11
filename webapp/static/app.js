@@ -78,6 +78,7 @@
     const t = hexRgb(s.color_text); if (t) root.setProperty('--text-rgb', t.join(','));
     const a = hexRgb(s.color_accent); if (a) { root.setProperty('--accent-rgb', a.join(',')); root.setProperty('--on-accent', lum(a) > 0.55 ? '#1A1208' : '#FFFFFF'); }
     const b = hexRgb(s.color_bg); if (b) root.setProperty('--bg-rgb', b.join(','));
+    document.documentElement.classList.toggle('dark', !!(b && lum(b) < 0.5));
     if (tg) {
       try { tg.setHeaderColor(s.color_bg); tg.setBackgroundColor(s.color_bg); } catch (e) { /* */ }
       try { if (tg.setBottomBarColor) tg.setBottomBarColor(s.color_bg); } catch (e) { /* */ }
@@ -169,8 +170,13 @@
   }
   function controlHtml(id, big = false) {
     const q = S.cart[id] || 0;
-    if (!q) return `<button class="add" data-add="${id}" aria-label="Qo'shish">+</button>`;
-    return `<div class="stepper ${big ? 'lg' : ''}"><button data-dec="${id}">−</button><b>${q}</b><button data-inc="${id}">+</button></div>`;
+    if (big) {
+      if (!q) return `<button class="add" data-add="${id}" aria-label="Qo'shish">+</button>`;
+      return `<div class="stepper lg"><button data-dec="${id}">−</button><b>${q}</b><button data-inc="${id}">+</button></div>`;
+    }
+    const p = productById(id);
+    if (!q) return `<button class="price-btn" data-add="${id}"><span>${fmt(p ? p.price : 0)} <small>${cur()}</small></span><i>+</i></button>`;
+    return `<div class="price-btn on"><button data-dec="${id}" aria-label="Kamaytirish">−</button><b>${q}</b><button data-inc="${id}" aria-label="Ko'paytirish">+</button></div>`;
   }
   function refreshControls(id) {
     $$(`[data-ctl="${id}"]`).forEach((el) => { el.innerHTML = controlHtml(id, el.dataset.big === '1'); });
@@ -183,15 +189,18 @@
     const t = cartTotals();
     bar.classList.toggle('show', t.count > 0 && S.view === 'menu');
     $('.cnt', bar).textContent = t.count;
-    $('.cb-lbl', bar).innerHTML = `${moneyText(t.total)}<small>${esc(S.settings.app_btn_cart)} · ${t.count} ta</small>`;
+    $('.cb-lbl', bar).innerHTML = `${esc(S.settings.app_btn_cart)}<small>${t.count} ta mahsulot</small>`;
+    const go = $('.go', bar); if (go) go.innerHTML = `${moneyText(t.total)} <span>→</span>`;
     if (bump) { bar.classList.remove('bump'); void bar.offsetWidth; bar.classList.add('bump'); }
   }
 
   /* ------------------------------------------------------------ media */
+  const TINTS = ['#FFE9D6', '#E3F4E8', '#E6EEFF', '#FFE4EC', '#FFF4CC', '#EDE7FF', '#DDF5F5', '#F2EDE4'];
+  function catTint(catId) { const i = S.categories.findIndex((x) => x.id === catId); return TINTS[(i < 0 ? 0 : i) % TINTS.length]; }
   function catEmoji(catId) { const c = S.categories.find((x) => x.id === catId); return (c && c.emoji) || '🍽'; }
   function photoHtml(p) {
     if (p.photo) return `<img src="${esc(p.photo)}" alt="${esc(p.name)}" loading="lazy" onerror="this.outerHTML='<div class=ph-empty>${esc(catEmoji(p.category_id))}</div>'">`;
-    return `<div class="ph-empty">${esc(catEmoji(p.category_id))}</div>`;
+    return `<div class="ph-empty" style="--tint:${catTint(p.category_id)}"><span>${esc(catEmoji(p.category_id))}</span></div>`;
   }
 
   /* ------------------------------------------------------------ render: root */
@@ -214,24 +223,19 @@
   function headerHtml() {
     const s = S.settings;
     const logo = s.brand_logo ? `<img src="${esc(s.brand_logo)}" alt="">` : esc(s.brand_emoji || '🫖');
-    const tableBtn = S.table
-      ? `<button class="table-pill" data-table>📍 ${S.table}-stol</button>`
-      : `<button class="table-pill empty" data-table>📍 Stolni tanlang</button>`;
     return `<header class="top">
       <div class="logo">${logo}</div>
       <div class="brand"><h1>${esc(s.brand_name)}</h1><p>${esc(s.brand_tagline)}</p></div>
       ${S.isAdmin ? '<button class="icon-btn" data-go="admin" aria-label="Admin">⚙️</button>' : ''}
       <button class="icon-btn" data-go="orders" aria-label="Buyurtmalar">🧾${S.hasActive ? '<span class="dot"></span>' : ''}</button>
-    </header>
-    <div style="padding:0 16px 4px">${tableBtn}</div>`;
+    </header>`;
   }
 
-  function heroTitle() {
-    const t = esc(S.settings.app_hero_title || '');
-    const words = t.split(' ');
-    if (words.length < 2) return t;
-    const last = words.pop();
-    return `${words.join(' ')} <em>${last}</em>`;
+  function greeting() {
+    const h = new Date().getHours();
+    const part = h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech';
+    const name = S.user && S.user.name ? S.user.name.split(' ')[0] : '';
+    return `${part}${name ? ', ' + esc(name) : ''} 👋`;
   }
 
   function productCard(p, i = 0) {
@@ -239,20 +243,36 @@
       <div class="ph">${photoHtml(p)}${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}</div>
       <div class="body">
         <div class="name">${esc(p.name)}</div>
-        ${p.unit ? `<div class="unit">${esc(p.unit)}</div>` : ''}
-        <div class="foot"><div class="price">${money(p.price)}</div><div data-ctl="${p.id}">${controlHtml(p.id)}</div></div>
+        <div class="unit">${esc(p.unit || '')}</div>
+        <div class="foot" data-ctl="${p.id}">${controlHtml(p.id)}</div>
       </div></article>`;
+  }
+
+  function popularHtml() {
+    const pop = S.products.filter((p) => p.badge).slice(0, 10);
+    if (pop.length < 2) return '';
+    return `<section class="pop"><div class="row-title"><h3>Ommabop</h3><span>🔥 ko'p buyurtma qilinadi</span></div>
+      <div class="pop-scroll">${pop.map((p) => `<article class="pop-card" data-open="${p.id}">
+        <div class="ph">${photoHtml(p)}<span class="badge">${esc(p.badge)}</span></div>
+        <div class="pop-info"><div class="name">${esc(p.name)}</div><div class="foot" data-ctl="${p.id}">${controlHtml(p.id)}</div></div>
+      </article>`).join('')}</div></section>`;
   }
 
   function menuHtml() {
     const s = S.settings;
     const cats = S.categories.filter((c) => S.products.some((p) => p.category_id === c.id));
     const chips = cats.map((c) => `<button class="chip ${S.activeCat === c.id ? 'active' : ''}" data-cat="${c.id}">${esc(c.emoji)} ${esc(c.name)}</button>`).join('');
+    const tiles = cats.map((c) => `<button class="tile" data-cat="${c.id}"><i style="--tint:${catTint(c.id)}">${esc(c.emoji || '🍽')}</i><span>${esc(c.name)}</span></button>`).join('');
+    const tableBtn = S.table
+      ? `<button class="table-pill" data-table><b>📍 ${S.table}-stol</b><small>o'zgartirish</small></button>`
+      : `<button class="table-pill empty" data-table><b>📍 Stolni tanlang</b><small>bosing</small></button>`;
     return `${headerHtml()}
-      <section class="hero"><h2>${heroTitle()}</h2></section>
-      ${s.app_banner_text ? `<div class="banner">${esc(s.app_banner_text)}</div>` : ''}
+      <section class="hero"><p class="hello">${greeting()}</p><h2>${esc(s.app_hero_title || '')}</h2>${tableBtn}</section>
+      ${s.app_banner_text ? `<div class="banner"><div class="banner-txt"><small>Bugungi taklif</small><b>${esc(s.app_banner_text)}</b></div><div class="banner-art">${esc(s.brand_emoji || '🫖')}</div></div>` : ''}
+      <div class="tiles">${tiles}</div>
+      ${popularHtml()}
       <div class="sticky">
-        <label class="search">🔍<input id="search" type="search" enterkeyhint="search" placeholder="${esc(s.app_search_placeholder)}" value="${esc(S.search)}" autocomplete="off"><button class="clear ${S.search ? '' : 'hidden'}" data-clear>✕</button></label>
+        <label class="search"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" type="search" enterkeyhint="search" placeholder="${esc(s.app_search_placeholder)}" value="${esc(S.search)}" autocomplete="off"><button class="clear ${S.search ? '' : 'hidden'}" data-clear>✕</button></label>
         <nav class="chips" id="chips">${chips}</nav>
       </div>
       <main id="catalog">${catalogHtml()}</main>
@@ -334,7 +354,7 @@
     haptic('medium');
     closeSheet();
     try { await api('/api/table', { json: { table: n } }); } catch (e) { /* */ }
-    if (S.view === 'menu') { const pill = $('[data-table]'); if (pill) { pill.className = 'table-pill'; pill.textContent = `📍 ${n}-stol`; } }
+    if (S.view === 'menu') { const pill = $('[data-table]'); if (pill) { pill.className = 'table-pill'; pill.innerHTML = `<b>📍 ${n}-stol</b><small>o'zgartirish</small>`; } }
     if (S.view === 'cart') renderCartBody();
     const fn = S.afterTable; S.afterTable = null;
     if (fn) fn();

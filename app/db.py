@@ -31,13 +31,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "btn_admin": "⚙️ Admin panel",
     "menu_button_text": "Menyu",
     # Ilova matnlari / tugmalari
-    "app_hero_title": "Bugun nima tanovul qilamiz?",
+    "app_hero_title": "Bugun nima yeymiz?",
     "app_search_placeholder": "Taom yoki ichimlik qidiring…",
     "app_btn_add": "Qo'shish",
     "app_btn_cart": "Savat",
     "app_btn_checkout": "Buyurtma berish",
     "app_btn_paid": "To'lov qildim",
-    "app_banner_text": "🔥 Bugun: issiq non va choy bepul!",
+    "app_banner_text": "Har bir oshga issiq non va ko'k choy — bepul!",
     "pay_note": "Ikkala kartaga ko'rsatilgan summani o'tkazing va chek rasmini yuklang.",
     # To'lov
     "pay_mode": "split",  # split = 2 karta, single = 1 karta, online = Click/Payme
@@ -61,12 +61,13 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "staff_chat_id": "",
     "orders_open": True,
     # Ranglar
-    "color_accent": "#E8B04B",
-    "color_accent2": "#D9772B",
-    "color_bg": "#0E0C0A",
-    "color_surface": "#1A1612",
-    "color_text": "#F7F0E6",
-    "color_muted": "#A6978A",
+    "color_accent": "#FF5A1F",
+    "color_accent2": "#FF8A3D",
+    "color_bg": "#F3F3F5",
+    "color_surface": "#FFFFFF",
+    "color_text": "#16161A",
+    "color_muted": "#8B8B94",
+    "design_version": 2,
 }
 
 # Hostingdagi SETTING_<KALIT> o'zgaruvchilari standart qiymatni almashtiradi (masalan SETTING_CARD1_NUMBER)
@@ -147,8 +148,22 @@ class DB:
         await self.conn.execute("PRAGMA journal_mode=WAL")
         await self.conn.executescript(SCHEMA)
         await self.conn.commit()
+        await self._migrate()
         await self._load_settings()
         await self._seed()
+
+    async def _migrate(self) -> None:
+        async with self.conn.execute("SELECT value FROM settings WHERE key='design_version'") as cur:
+            row = await cur.fetchone()
+        if row is None:
+            # 2-versiya: yangi zamonaviy dizayn — eski ranglarni standartga qaytaramiz
+            await self.conn.execute("DELETE FROM settings WHERE key LIKE 'color_%'")
+            await self.conn.execute(
+                "UPDATE settings SET value=? WHERE key='app_hero_title' AND value=?",
+                (json.dumps("Bugun nima yeymiz?"), json.dumps("Bugun nima tanovul qilamiz?")),
+            )
+            await self.conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES('design_version', '2')")
+            await self.conn.commit()
 
     async def close(self) -> None:
         if self.conn:
