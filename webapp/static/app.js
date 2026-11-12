@@ -174,12 +174,12 @@
       if (!q) return `<button class="add" data-add="${id}" aria-label="Qo'shish">+</button>`;
       return `<div class="stepper lg"><button data-dec="${id}">−</button><b>${q}</b><button data-inc="${id}">+</button></div>`;
     }
-    const p = productById(id);
-    if (!q) return `<button class="price-btn" data-add="${id}"><span>${fmt(p ? p.price : 0)} <small>${cur()}</small></span><i>+</i></button>`;
-    return `<div class="price-btn on"><button data-dec="${id}" aria-label="Kamaytirish">−</button><b>${q}</b><button data-inc="${id}" aria-label="Ko'paytirish">+</button></div>`;
+    if (!q) return `<button class="fab" data-add="${id}" aria-label="Qo'shish"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>`;
+    return `<div class="qty"><button data-dec="${id}" aria-label="Kamaytirish">−</button><b>${q}</b><button data-inc="${id}" aria-label="Ko'paytirish">+</button></div>`;
   }
   function refreshControls(id) {
     $$(`[data-ctl="${id}"]`).forEach((el) => { el.innerHTML = controlHtml(id, el.dataset.big === '1'); });
+    $$(`[data-open="${id}"]`).forEach((el) => el.classList.toggle('in-cart', !!S.cart[id]));
     $$(`[data-sheetctl="${id}"]`).forEach((el) => { el.innerHTML = sheetControl(id); });
     if (S.view === 'cart') renderCartBody();
   }
@@ -238,13 +238,17 @@
     return `${part}${name ? ', ' + esc(name) : ''} 👋`;
   }
 
+  function priceHtml(p) { return `<div class="pr">${fmt(p.price)} <small>${cur()}</small></div>`; }
+
   function productCard(p, i = 0) {
-    return `<article class="card" data-open="${p.id}" style="animation-delay:${Math.min(i, 10) * 30}ms">
-      <div class="ph">${photoHtml(p)}${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}</div>
+    const inCart = S.cart[p.id] ? ' in-cart' : '';
+    return `<article class="card${inCart}" data-open="${p.id}" style="animation-delay:${Math.min(i, 10) * 30}ms">
+      <div class="ph">${photoHtml(p)}${p.badge ? `<span class="badge">${esc(p.badge)}</span>` : ''}
+        <div class="ctl" data-ctl="${p.id}">${controlHtml(p.id)}</div></div>
       <div class="body">
+        ${priceHtml(p)}
         <div class="name">${esc(p.name)}</div>
-        <div class="unit">${esc(p.unit || '')}</div>
-        <div class="foot" data-ctl="${p.id}">${controlHtml(p.id)}</div>
+        ${p.unit ? `<div class="unit">${esc(p.unit)}</div>` : ''}
       </div></article>`;
   }
 
@@ -252,9 +256,11 @@
     const pop = S.products.filter((p) => p.badge).slice(0, 10);
     if (pop.length < 2) return '';
     return `<section class="pop"><div class="row-title"><h3>Ommabop</h3><span>🔥 ko'p buyurtma qilinadi</span></div>
-      <div class="pop-scroll">${pop.map((p) => `<article class="pop-card" data-open="${p.id}">
-        <div class="ph">${photoHtml(p)}<span class="badge">${esc(p.badge)}</span></div>
-        <div class="pop-info"><div class="name">${esc(p.name)}</div><div class="foot" data-ctl="${p.id}">${controlHtml(p.id)}</div></div>
+      <div class="pop-scroll">${pop.map((p) => `<article class="pop-card${S.cart[p.id] ? ' in-cart' : ''}" data-open="${p.id}">
+        <div class="ph">${photoHtml(p)}<span class="badge">${esc(p.badge)}</span><div class="ctl" data-ctl="${p.id}">${controlHtml(p.id)}</div></div>
+        <div class="pop-info"><div class="name">${esc(p.name)}</div>
+          <div class="pop-meta">${priceHtml(p)}${p.unit ? `<span>${esc(p.unit)}</span>` : ''}</div>
+          ${p.description ? `<p class="pop-desc">${esc(p.description)}</p>` : ''}</div>
       </article>`).join('')}</div></section>`;
   }
 
