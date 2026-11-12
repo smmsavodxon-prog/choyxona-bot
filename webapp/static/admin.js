@@ -10,6 +10,7 @@
   ];
 
   const PRESETS = [
+    { name: 'Choyxona', c: { color_accent: '#C8552B', color_accent2: '#E9A23B', color_bg: '#F6F1EA', color_surface: '#FFFFFF', color_text: '#221A14', color_muted: '#8C8075' } },
     { name: 'Zamonaviy', c: { color_accent: '#FF5A1F', color_accent2: '#FF8A3D', color_bg: '#F3F3F5', color_surface: '#FFFFFF', color_text: '#16161A', color_muted: '#8B8B94' } },
     { name: 'Yashil', c: { color_accent: '#12A150', color_accent2: '#34C77B', color_bg: '#F2F5F3', color_surface: '#FFFFFF', color_text: '#121714', color_muted: '#86918A' } },
     { name: 'Malina', c: { color_accent: '#E6264D', color_accent2: '#FF5C7A', color_bg: '#F6F2F3', color_surface: '#FFFFFF', color_text: '#1A1416', color_muted: '#8F8589' } },

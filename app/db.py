@@ -61,12 +61,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "staff_chat_id": "",
     "orders_open": True,
     # Ranglar
-    "color_accent": "#FF5A1F",
-    "color_accent2": "#FF8A3D",
-    "color_bg": "#F3F3F5",
+    "color_accent": "#C8552B",
+    "color_accent2": "#E9A23B",
+    "color_bg": "#F6F1EA",
     "color_surface": "#FFFFFF",
-    "color_text": "#16161A",
-    "color_muted": "#8B8B94",
+    "color_text": "#221A14",
+    "color_muted": "#8C8075",
     "design_version": 2,
 }
 
